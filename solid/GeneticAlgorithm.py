@@ -133,7 +133,7 @@ class GeneticAlgorithm:
         shuffle(self.population)
         total_fitness = sum(self.fitnesses)
         if total_fitness != 0:
-            probs = list([self._fitness(x) / total_fitness for x in self.population])
+            probs = list([self.fitnesses[i] / total_fitness for i in range(len(self.population))])
         else:
             return self.population[0:n]
         res = []
