@@ -1,5 +1,5 @@
 from random import choice
-from Solid.GeneticAlgorithm import GeneticAlgorithm
+from solid.GeneticAlgorithm import GeneticAlgorithm
 
 
 class Algorithm(GeneticAlgorithm):

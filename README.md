@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="logo.png"></img>
+    <img src="logo.png" alt="Solid logo not found"/>
 </div>
 
 <br>
@@ -12,6 +12,8 @@
 #### It contains basic versions of many of the most common [optimization algorithms that do not require the calculation of gradients](https://en.wikipedia.org/wiki/Derivative-free_optimization), and allows for very rapid development using them.
 
 #### It's a very versatile library that's great for learning, modifying, and of course, using out-of-the-box.
+
+## 
 
 ## See the detailed documentation [here](https://100.github.io/Solid/).
 
@@ -40,16 +42,15 @@
 
 ```python
 from random import choice, randint, random
-from string import lowercase
-from Solid.EvolutionaryAlgorithm import EvolutionaryAlgorithm
+from string import ascii_lowercase
+from solid.EvolutionaryAlgorithm import EvolutionaryAlgorithm
 
 
 class Algorithm(EvolutionaryAlgorithm):
-    """
-    Tries to get a randomly-generated string to match string "clout"
-    """
+    """ Tries to get a randomly-generated string to match string "clout"""
+
     def _initial_population(self):
-        return list(''.join([choice(lowercase) for _ in range(5)]) for _ in range(50))
+        return list(''.join([choice(ascii_lowercase) for _ in range(5)]) for _ in range(50))
 
     def _fitness(self, member):
         return float(sum(member[i] == "clout"[i] for i in range(5)))
@@ -61,7 +62,7 @@ class Algorithm(EvolutionaryAlgorithm):
     def _mutate(self, member):
         if self.mutation_rate >= random():
             member = list(member)
-            member[randint(0,4)] = choice(lowercase)
+            member[randint(0, 4)] = choice(ascii_lowercase)
             member = ''.join(member)
         return member
 
@@ -69,7 +70,6 @@ class Algorithm(EvolutionaryAlgorithm):
 def test_algorithm():
     algorithm = Algorithm(.5, .7, 500, max_fitness=None)
     best_solution, best_objective_value = algorithm.run()
-
 ```
 
 <hr>
@@ -87,4 +87,3 @@ Use [pytest](https://docs.pytest.org/en/latest/); it should automatically find t
 Feel free to send a pull request if you want to add any features or if you find a bug.
 
 Check the issues tab for some potential things to do.
-

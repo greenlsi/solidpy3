@@ -1,6 +1,6 @@
 from random import choice, randint, random
 from string import ascii_lowercase
-from Solid.EvolutionaryAlgorithm import EvolutionaryAlgorithm
+from solid.EvolutionaryAlgorithm import EvolutionaryAlgorithm
 
 
 class Algorithm(EvolutionaryAlgorithm):

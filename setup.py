@@ -1,16 +1,18 @@
 from distutils.core import setup
 setup(
-  name = 'solidpy',
-  packages = ['Solid'],
-  version = '0.11',
-  description = 'A comprehensive gradient-free optimization library',
-  author = 'Devin Soni',
-  author_email = 'devinsoni1010@gmail.com',
-  url = 'https://github.com/100/Solid',
-  download_url = 'https://github.com/100/Solid/archive/0.1.tar.gz',
-  keywords = ['metaheuristic', 'optimization', 'algorithm', 'artificial intelligence', 'machine learning'],
-  classifiers = ['Programming Language :: Python :: 2.7'],
+  name='solidpy3',
+  packages=['solid'],
+  version='0.2',
+  description='A comprehensive gradient-free optimization library',
+  author='Devin Soni (original author), Román Cárdenas',
+  author_email='r.cardenas@upm.es',
+  url='https://github.com/greenlsi/solidpy3',
+  # download_url='https://github.com/100/Solid/archive/0.1.tar.gz',
+  keywords=['metaheuristic', 'optimization', 'algorithm', 'artificial intelligence', 'machine learning'],
+  classifiers=[
+    'Programming Language :: Python :: 3.6',
+  ],
   install_requires=[
-    'numpy'
+    'numpy>=1.23.1',
   ],
 )

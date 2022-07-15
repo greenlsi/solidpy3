@@ -1,59 +1,45 @@
-from abc import ABCMeta, abstractmethod
+from __future__ import annotations
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from math import exp
 from random import random
+from typing import TypeVar, Generic
 
 
-class StochasticHillClimb:
-    """
-    Conducts stochastic hill climb
-    """
-    __metaclass__ = ABCMeta
+S = TypeVar('S')  # Generic type for the state
 
-    initial_state = None
-    current_state = None
-    best_state = None
 
-    cur_steps = 0
-    max_steps = None
-
-    best_objective = None
-    max_objective = None
-
-    temp = None
-
-    def __init__(self, initial_state, temp, max_steps, max_objective=None):
+class StochasticHillClimb(ABC, Generic[S]):
+    def __init__(self, initial_state: S, temp: float, max_steps: int, max_objective: float = None):
         """
-
+        Abstract Base Class to conduct stochastic hill climb.
         :param initial_state: initial state of hill climbing
         :param max_steps: maximum steps to run hill climbing for
         :param temp: temperature in probabilistic acceptance of transition
         :param max_objective: objective function to stop algorithm once reached
         """
-        self.initial_state = initial_state
-
-        if isinstance(max_steps, int) and max_steps > 0:
-            self.max_steps = max_steps
-        else:
-            raise ValueError('Max steps must be a positive integer')
-
-        if max_objective is not None:
-            if isinstance(max_objective, (float, int)):
-                self.max_objective = float(max_objective)
-            else:
-                raise ValueError('Maximum objective must be a numeric type')
-
-        if isinstance(temp, (float, int)):
-            self.temp = float(temp)
-        else:
+        self.initial_state: S = initial_state
+        if not isinstance(temp, (float, int)):
             raise ValueError('Temperature must be a numeric type')
+        self.temp = float(temp)
+        if not isinstance(max_steps, int) or max_steps <= 0:
+            raise ValueError('Max steps must be a positive integer')
+        self.max_steps = max_steps
+        self.max_objective: float | None = None
+        if max_objective is not None:
+            if not isinstance(max_objective, (float, int)):
+                raise ValueError('Maximum objective must be a numeric type')
+            self.max_objective = float(max_objective)
+        self.current_state: S | None = None
+        self.best_state: S | None = None
+        self.best_objective: float | None = None
+        self.cur_steps: int = 0
 
     def __str__(self):
-        return ('STOCHASTIC HILL CLIMB: \n' +
-                'CURRENT STEPS: %d \n' +
-                'BEST OBJECTIVE: %f \n' +
-                'BEST STATE: %s \n\n') % \
-               (self.cur_steps, self.best_objective, str(self.best_state))
+        return 'STOCHASTIC HILL CLIMB: \n' + \
+               f'CURRENT STEPS: {self.cur_steps} \n' + \
+               f'BEST OBJECTIVE: {self.best_objective} \n' + \
+               f'BEST STATE: {str(self.best_state)} \n\n'
 
     def __repr__(self):
         return self.__str__()
@@ -61,16 +47,14 @@ class StochasticHillClimb:
     def _clear(self):
         """
         Resets the variables that are altered on a per-run basis of the algorithm
-
-        :return: None
         """
-        self.cur_steps = 0
         self.current_state = None
         self.best_state = None
         self.best_objective = None
+        self.cur_steps = 0
 
     @abstractmethod
-    def _neighbor(self):
+    def _neighbor(self) -> S:
         """
         Returns a random member of the neighbor of the current state
 
@@ -79,7 +63,7 @@ class StochasticHillClimb:
         pass
 
     @abstractmethod
-    def _objective(self, state):
+    def _objective(self, state: S) -> float:
         """
         Evaluates a given state
 
@@ -88,12 +72,12 @@ class StochasticHillClimb:
         """
         pass
 
-    def _accept_neighbor(self, neighbor):
+    def _accept_neighbor(self, neighbor: S) -> bool:
         """
-        Probabilistically determines whether or not to accept a transition to a neighbor
+        Probabilistically determines whether to accept a transition to a neighbor or not
 
         :param neighbor: a state
-        :return: boolean indicating whether or not transition was accepted
+        :return: boolean indicating whether transition was accepted or not
         """
         try:
             p = 1. / (1 + (exp((self._objective(self.current_state) - self._objective(neighbor)) / self.temp)))
@@ -101,7 +85,7 @@ class StochasticHillClimb:
             return True
         return True if p >= 1 else p >= random()
 
-    def run(self, verbose=True):
+    def run(self, verbose: bool = True):
         """
         Conducts hill climb
 
