@@ -1,125 +1,127 @@
 from __future__ import annotations
+import multiprocessing
 from abc import ABC, abstractmethod
-from copy import deepcopy
 from collections import deque
-from numpy import argmax
-from typing import Deque, Generic, TypeVar
+from copy import deepcopy
+from typing import Callable, Deque, Generic
+from .utils import S, F, parallel_score
 
 
-S = TypeVar('S')  # Generic type for the state
-
-
-class TabuSearch(ABC, Generic[S]):
-    def __init__(self, initial_state: S, tabu_size: int, max_steps: int, max_score: float = None):
+class TabuSearch(ABC, Generic[S, F]):
+    def __init__(self, initial_state: S, score_f: Callable[[S], F], tabu_size: int, n_neighbors: int):
         """
         Abstract Base Class to conduct tabu search.
-        :param initial_state: initial state, must implement __eq__ or __cmp__.
-        :param tabu_size: number of states to keep in tabu list.
-        :param max_steps: maximum number of steps to run algorithm for.
-        :param max_score: score to stop algorithm once reached.
+        :param initial_state: initial state, must implement __eq__.
+        :param score_f: score function to be used. The return value must implement __gt__.
+        :param tabu_size:
+        :param n_neighbors:
         """
         self.initial_state: S = initial_state
-        if not isinstance(tabu_size, int) or tabu_size <= 0:
-            raise TypeError('Tabu size must be a positive integer')
+        self.score_f: Callable[[S], F] = score_f
+        if tabu_size < 1:
+            raise ValueError('tabu_size must be greater than 0')
         self.tabu_size: int = tabu_size
-        if not isinstance(max_steps, int) or max_steps <= 0:
-            raise TypeError('Maximum steps must be a positive integer')
-        self.max_steps: int = max_steps
-        self.max_score: float | None = None
-        if max_score is not None:
-            if not isinstance(max_score, (int, float)):
-                raise TypeError('Maximum score must be a numeric type')
-            self.max_score = float(max_score)
+        if n_neighbors < 1:
+            raise ValueError('n_neighbors must be greater than 0')
+        self.n_neighbors: int = n_neighbors
+
+        self.current_steps: int = 0
         self.current_state: S | None = None
+        self.current_score: F | None = None
         self.best_state: S | None = None
-        self.tabu_list: Deque[S] = deque(maxlen=self.tabu_size)
-        self.cur_steps: int = 0
+        self.best_score: F | None = None
 
     def __str__(self):
-        return 'TABU SEARCH: \n' + \
-                f'CURRENT STEPS: {self.cur_steps} \n' + \
-                f'BEST SCORE: {self._score(self.best_state)} \n' + \
-                f'BEST MEMBER: {str(self.best_state)} \n\n'
+        return 'TABU SEARCH:\n' + \
+               f'CURRENT STEPS: {self.current_steps}\n' + \
+               f'BEST MEMBER: {str(self.best_state)}\n' + \
+               f'BEST SCORE: {self.best_score}\n\n'
 
     def __repr__(self):
         return self.__str__()
 
     def _clear(self):
         """ Resets the variables that are altered on a per-run basis of the algorithm """
+        self.current_steps = 0
         self.current_state = None
+        self.current_score = None
         self.best_state = None
-        self.tabu_list.clear()
-        self.cur_steps = 0
+        self.best_score = None
 
     @abstractmethod
-    def _score(self, state: S) -> float:
+    def _neighbor(self) -> S:
         """
-        Returns objective function value of a state
-
-        :param state: a state
-        :return: objective function value of state
-        """
-        pass
-
-    @abstractmethod
-    def _neighborhood(self) -> list[S]:
-        """
-        Returns list of all members of neighborhood of current state, given self.current
-
+        Returns list of all members of neighborhood of current state, given self.current_steps
         :return: list of members of neighborhood
         """
         pass
 
-    def _best(self, neighborhood: list[S]) -> S:
+    def _neighborhood(self, parallel: bool) -> list[tuple[S, F]]:
         """
-        Finds the best member of a neighborhood
 
-        :param neighborhood: a neighborhood
-        :return: best member of neighborhood
+        :param parallel:
+        :return:
         """
-        return neighborhood[argmax(self._score(x) for x in neighborhood)]
+        if parallel:
+            manager = multiprocessing.Manager()
+            plist = manager.list()
+            jobs = list()
+            for _ in range(self.n_neighbors):
+                neighbor = self._neighbor()
+                p = multiprocessing.Process(target=parallel_score, args=(self.score_f, neighbor, plist))
+                p.start()
+                jobs.append(p)
+            for t in jobs:
+                t.join()
+            return [(neighbor, score) for neighbor, score in plist]
+        else:
+            neighbors = [self._neighbor() for _ in range(self.n_neighbors)]
+            return [(neighbor, self.score_f(neighbor)) for neighbor in neighbors]
 
-    def run(self, verbose: bool = True):
+    def run(self, max_steps: int, max_score: F = None, parallel: bool = False, verbose: bool = True):
         """
-        Conducts tabu search
-
+        Conducts tabu search.
+        :param max_steps: maximum number of steps to explore.
+        :param max_score: score to stop algorithm once reached.
+        :param parallel:
         :param verbose: indicates whether to print progress regularly or not
         :return: best state and objective function value of best state
         """
         self._clear()
+        tabu_list: Deque[S] = deque(maxlen=self.tabu_size)
         self.current_state = deepcopy(self.initial_state)
-        self.best_state = deepcopy(self.initial_state)
+        self.current_score = self.score_f(self.current_state)
+        self.best_state, self.best_score = deepcopy(self.initial_state), self.current_score
 
-        for i in range(self.max_steps):
-            self.cur_steps += 1
-
-            if ((i + 1) % 100 == 0) and verbose:
+        for i in range(max_steps):
+            self.current_steps += 1
+            if verbose and ((i + 1) % 10 == 0):
                 print(self)
-
-            neighborhood = self._neighborhood()
-            neighborhood_best = self._best(neighborhood)
-
-            while True:
-                if all(x in self.tabu_list for x in neighborhood):
-                    print('TERMINATING - NO SUITABLE NEIGHBORS')
-                    return self.best_state, self._score(self.best_state)
-                if neighborhood_best in self.tabu_list:
-                    if self._score(neighborhood_best) > self._score(self.best_state):
-                        self.tabu_list.append(neighborhood_best)
-                        self.best_state = deepcopy(neighborhood_best)
+            neighborhood: list[tuple[S, F]] = self._neighborhood(parallel)
+            neighborhood.sort(key=lambda x: x[1])  # Now, the last element of the list contains the best neighborhood
+            while neighborhood:
+                neighbor_state, neighbor_score = neighborhood[-1]
+                if neighbor_state in tabu_list:
+                    if neighbor_score > self.best_score:
+                        tabu_list.append(neighbor_state)
+                        self.best_state, self.best_score = deepcopy(neighbor_state), neighbor_score
                         break
                     else:
-                        neighborhood.remove(neighborhood_best)
-                        neighborhood_best = self._best(neighborhood)
+                        neighborhood.pop()
                 else:
-                    self.tabu_list.append(neighborhood_best)
-                    self.current_state = neighborhood_best
-                    if self._score(self.current_state) > self._score(self.best_state):
-                        self.best_state = deepcopy(self.current_state)
+                    tabu_list.append(neighbor_state)
+                    self.current_state, self.current_score = neighbor_state, neighbor_score
+                    if self.current_score > self.best_score:
+                        self.best_state, self.best_score = deepcopy(self.current_state), self.current_score
                     break
-
-            if self.max_score is not None and self._score(self.best_state) > self.max_score:
+            if not neighborhood:
+                print('TERMINATING - NO SUITABLE NEIGHBORS')
+                print(self)
+                return self.best_state, self.best_score
+            if max_score is not None and self.best_score >= max_score:
                 print('TERMINATING - REACHED MAXIMUM SCORE')
-                return self.best_state, self._score(self.best_state)
+                print(self)
+                return self.best_state, self.best_score
         print('TERMINATING - REACHED MAXIMUM STEPS')
-        return self.best_state, self._score(self.best_state)
+        print(self)
+        return self.best_state, self.best_score
