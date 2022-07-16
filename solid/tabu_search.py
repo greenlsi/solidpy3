@@ -26,6 +26,7 @@ class TabuSearch(ABC, Generic[S, F]):
         self.n_neighbors: int = n_neighbors
 
         self.current_steps: int = 0
+        self.tabu_list: Deque[S] = deque(maxlen=self.tabu_size)
         self.current_state: S | None = None
         self.current_score: F | None = None
         self.best_state: S | None = None
@@ -43,6 +44,7 @@ class TabuSearch(ABC, Generic[S, F]):
     def _clear(self):
         """ Resets the variables that are altered on a per-run basis of the algorithm """
         self.current_steps = 0
+        self.tabu_list.clear()
         self.current_state = None
         self.current_score = None
         self.best_state = None
@@ -51,32 +53,38 @@ class TabuSearch(ABC, Generic[S, F]):
     @abstractmethod
     def _neighbor(self) -> S:
         """
-        Returns list of all members of neighborhood of current state, given self.current_steps
-        :return: list of members of neighborhood
+        Returns a new neighbor of current state.
+        :return: new neighbor
         """
         pass
 
     def _neighborhood(self, parallel: bool) -> list[tuple[S, F]]:
         """
-
-        :param parallel:
-        :return:
+        Creates self.n_neighbors new neighbors. Those who are already in the tabu list are dropped.
+        The remaining neighbors are evaluated according to the score function, self.f_score.
+        :param parallel: if true, it evaluates all the valid neighbors in parallel using multiprocessing.
+        :return: list of tuples with new valid neighbors and their score.
         """
+        # First, we create the list of neighbors
+        neighbors: list[S] = list()
+        for _ in range(self.n_neighbors):  # As much as n_neighbors
+            neighbor = self._neighbor()
+            if neighbor not in self.tabu_list:  # If new neighbor is already in tabu list, we drop it
+                neighbors.append(neighbor)
+        # If parallel, we evaluate the new neighbors using multiprocessing
         if parallel:
             manager = multiprocessing.Manager()
             plist = manager.list()
             jobs = list()
-            for _ in range(self.n_neighbors):
-                neighbor = self._neighbor()
+            for neighbor in neighbors:
                 p = multiprocessing.Process(target=parallel_score, args=(self.score_f, neighbor, plist))
                 p.start()
                 jobs.append(p)
             for t in jobs:
                 t.join()
             return [(neighbor, score) for neighbor, score in plist]
-        else:
-            neighbors = [self._neighbor() for _ in range(self.n_neighbors)]
-            return [(neighbor, self.score_f(neighbor)) for neighbor in neighbors]
+        # Otherwise, we do it sequentially
+        return [(neighbor, self.score_f(neighbor)) for neighbor in neighbors]
 
     def run(self, max_steps: int, max_score: F = None, parallel: bool = False, verbose: bool = True):
         """
@@ -88,7 +96,6 @@ class TabuSearch(ABC, Generic[S, F]):
         :return: best state and objective function value of best state
         """
         self._clear()
-        tabu_list: Deque[S] = deque(maxlen=self.tabu_size)
         self.current_state = deepcopy(self.initial_state)
         self.current_score = self.score_f(self.current_state)
         self.best_state, self.best_score = deepcopy(self.initial_state), self.current_score
@@ -97,27 +104,24 @@ class TabuSearch(ABC, Generic[S, F]):
             self.current_steps += 1
             if verbose and ((i + 1) % 10 == 0):
                 print(self)
+            # First, we create and sort a new neighborhood
             neighborhood: list[tuple[S, F]] = self._neighborhood(parallel)
-            neighborhood.sort(key=lambda x: x[1])  # Now, the last element of the list contains the best neighborhood
-            while neighborhood:
-                neighbor_state, neighbor_score = neighborhood[-1]
-                if neighbor_state in tabu_list:
-                    if neighbor_score > self.best_score:
-                        tabu_list.append(neighbor_state)
-                        self.best_state, self.best_score = deepcopy(neighbor_state), neighbor_score
-                        break
-                    else:
-                        neighborhood.pop()
-                else:
-                    tabu_list.append(neighbor_state)
-                    self.current_state, self.current_score = neighbor_state, neighbor_score
-                    if self.current_score > self.best_score:
-                        self.best_state, self.best_score = deepcopy(self.current_state), self.current_score
-                    break
+            # If neighborhood is empty, then there are no suitable neighbors
             if not neighborhood:
                 print('TERMINATING - NO SUITABLE NEIGHBORS')
                 print(self)
                 return self.best_state, self.best_score
+            # Otherwise, we sort them according to the value of their score function
+            neighborhood.sort(key=lambda x: x[1])
+            # the best neighborhood is at the back of the list
+            neighbor_state, neighbor_score = neighborhood[-1]
+            # New best neighbor is added to the tabu list.
+            self.tabu_list.append(neighbor_state)
+            self.current_state, self.current_score = neighbor_state, neighbor_score
+            # If new best neighbor is better than the currently best, we update it
+            if self.current_score > self.best_score:
+                self.best_state, self.best_score = deepcopy(self.current_state), self.current_score
+            # If we reach the maximum score, we stop the optimization
             if max_score is not None and self.best_score >= max_score:
                 print('TERMINATING - REACHED MAXIMUM SCORE')
                 print(self)
