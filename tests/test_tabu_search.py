@@ -21,4 +21,4 @@ class Algorithm(TabuSearch[str, int]):
 
 if __name__ == '__main__':
     algorithm = Algorithm('aaaaa', 50, 10)
-    algorithm.run(max_steps=500, max_score=5, parallel=False)
+    algorithm.run(max_steps=500, max_score=5, parallel=True)
