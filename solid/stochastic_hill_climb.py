@@ -80,7 +80,7 @@ class StochasticHillClimb(ABC, Generic[S]):
         :return: boolean indicating whether transition was accepted or not
         """
         try:
-            p = 1. / (1 + (exp((self._objective(self.current_state) - self._objective(neighbor)) / self.temp)))
+            p = 1. / (1 + (exp((self._current_obj - self._objective(neighbor)) / self.temp)))
         except OverflowError:
             return True
         return True if p >= 1 else p >= random()
@@ -104,9 +104,10 @@ class StochasticHillClimb(ABC, Generic[S]):
 
             if self._accept_neighbor(neighbor):
                 self.current_state = neighbor
-
-            if self._objective(self.current_state) > (self.best_objective or 0):
-                self.best_objective = self._objective(self.current_state)
+            
+            self._current_obj = self._objective(self.current_state)
+            if self._current_obj > (self.best_objective or 0):
+                self.best_objective = self._current_obj
                 self.best_state = deepcopy(self.current_state)
 
             if self.max_objective is not None and (self.best_objective or 0) > self.max_objective:
